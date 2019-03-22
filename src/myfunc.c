@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -54,6 +55,21 @@ static void checkSum(u_char *buf);	/* 锐捷算法，计算两个字节的检验
 static int setProperty(u_char type, const u_char *value, int length);	/* 设置指定属性 */
 static int readPacket(int type);	/* 读取数据 */
 static int Check(const u_char *md5Seed);	/* 校验算法 */
+
+char *getTime()
+{
+    time_t rawtime;
+    struct tm *ptminfo;
+
+    time(&rawtime);
+    ptminfo = localtime(&rawtime);
+    char *time;
+    time = (char*)calloc(20,sizeof(char));
+    snprintf(time, 20,"%04d-%02d-%02d %02d:%02d:%02d",
+            ptminfo->tm_year + 1900, ptminfo->tm_mon + 1, ptminfo->tm_mday,
+            ptminfo->tm_hour, ptminfo->tm_min, ptminfo->tm_sec);
+    return time;
+}
 
 char *formatIP(u_int32_t ip)
 {
@@ -98,7 +114,8 @@ static int checkFile() {
 
 fileError:
 	if (dataFile[strlen(dataFile)-1] != '/')
-		printf("!! 所选文件%s无效，改用内置数据认证。\n", dataFile);
+		printf("[%s]!! 所选文件%s无效，改用内置数据认证。\n", getTime(), dataFile);
+    fflush(stdout);
 	return -1;
 }
 
@@ -139,7 +156,8 @@ static int getAddress()
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0)
 	{
-		printf("!! 创建套接字失败!\n");
+		printf("[%s]!! 创建套接字失败!\n", getTime());
+		fflush(stdout);
 		return -1;
 	}
 	strcpy(ifr.ifr_name, nic);
@@ -173,8 +191,10 @@ static int getAddress()
 
 #ifndef NO_ARP
 	gateMAC[0] = 0xFE;
-	if (ioctl(sock, SIOCGIFADDR, &ifr) < 0)
-		printf("!! 在网卡%s上获取IP失败!\n", nic);
+	if (ioctl(sock, SIOCGIFADDR, &ifr) < 0) {
+		printf("[%s]!! 在网卡%s上获取IP失败!\n", getTime(), nic);
+		fflush(stdout);
+    }
 	else {
 		rip = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
 		if (gateway!=0 && (startMode%3!=2 || ((u_char *)&gateway)[3]!=0x02))
@@ -184,16 +204,20 @@ static int getAddress()
 		ip = rip;
 #else
 	if (dhcpMode!=0 || ip==-1) {
-		if (ioctl(sock, SIOCGIFADDR, &ifr) < 0)
-			printf("!! 在网卡%s上获取IP失败!\n", nic);
+		if (ioctl(sock, SIOCGIFADDR, &ifr) < 0) {
+			printf("[%s]!! 在网卡%s上获取IP失败!\n", getTime(), nic);
+		    fflush(stdout);
+        }
 		else
 			ip = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
 	}
 #endif
 
 	if (dhcpMode!=0 || mask==-1) {
-		if (ioctl(sock, SIOCGIFNETMASK, &ifr) < 0)
-			printf("!! 在网卡%s上获取子网掩码失败!\n", nic);
+		if (ioctl(sock, SIOCGIFNETMASK, &ifr) < 0) {
+			printf("[%s]!! 在网卡%s上获取子网掩码失败!\n", getTime(), nic);
+            fflush(stdout);
+        }
 		else
 			mask = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
 	}
@@ -202,11 +226,13 @@ static int getAddress()
 	printf("** 本机MAC:\t%s\n", formatHex(localMAC, 6));
 	printf("** 使用IP:\t%s\n", formatIP(ip));
 	printf("** 子网掩码:\t%s\n", formatIP(mask));
+    fflush(stdout);
 	return 0;
 
 getMACError:
 	close(sock);
-	printf("!! 在网卡%s上获取MAC失败!\n", nic);
+	printf("[%s]!! 在网卡%s上获取MAC失败!\n", getTime(), nic);
+    fflush(stdout);
 	return -1;
 }
 
@@ -329,7 +355,8 @@ static int readPacket(int type)
 	return 0;
 
 fileError:
-	printf("!! 所选文件%s无效，改用内置数据认证。\n", dataFile);
+	printf("[%s]!! 所选文件%s无效，改用内置数据认证。\n", getTime(), dataFile);
+    fflush(stdout);
 	bufType -= 2;
 	if (bufType==1 && fillSize<0x1d7) {
 		free(fillBuf);
@@ -417,13 +444,16 @@ static int Check(const u_char *md5Seed)	/* 客户端校验 */
 	int value;
 	printf("** 客户端版本:\t%d.%d\n", fillBuf[0x3B], fillBuf[0x3C]);
 	printf("** MD5种子:\t%s\n", formatHex(md5Seed, 16));
+    fflush(stdout);
 	value = check_init(dataFile);
 	if (value == -1) {
-		printf("!! 缺少8021x.exe信息，客户端校验无法继续！\n");
+		printf("[%s]!! 缺少8021x.exe信息，客户端校验无法继续！\n", getTime());
+        fflush(stdout);
 		return 1;
 	}
 	V2_check(md5Seed, final_str);
 	printf("** V2校验值:\t%s\n", final_str);
+    fflush(stdout);
 	setProperty(0x17, (u_char *)final_str, 32);
 	check_free();
 	return 0;

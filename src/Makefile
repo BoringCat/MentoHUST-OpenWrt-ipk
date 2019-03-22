@@ -5,7 +5,7 @@ CC = mips-openwrt-linux-gcc
 CFLAGS = -Wall -g -O2
 INC_DIR= $(STAGING_DIR)/usr/include -I$(BUILD_DIR)/libpcap-*/ipkg-install/usr/include
 LINK_DIR= $(STAGING_DIR)/usr/lib -L$(BUILD_DIR)/libpcap-*/ipkg-install/usr/lib
-LIBS= $(BUILD_DIR)/libpcap-*/ipkg-install/usr/lib/libpcap.a
+LIBS= $(STAGING_DIR)/usr/lib/libpcap.a
 
 OBJ  = mentohust.o dlfunc.o md5.o mycheck.o myconfig.o myfunc.o strnormalize.o myini.o mystate.o
 .PHONY: all
