@@ -158,6 +158,7 @@ void initConfig(int argc, char **argv)
 			"Copyright (C) 2009-2010 HustMoon Studio\n"
 			"人到华中大，有甜亦有辣。明德厚学地，求是创新家。\n"
 			"Bug report to %s\n\n", VERSION, PACKAGE_BUGREPORT);
+	fflush(stdout);
 	saveFlag = (readFile(&daemonMode)==0 ? 0 : 1);
 	readArg(argc, argv, &saveFlag, &exitFlag, &daemonMode);
 #ifndef NO_NOTIFY
@@ -194,13 +195,17 @@ void initConfig(int argc, char **argv)
 	{
 		saveFlag = 1;
 		printf("?? 请输入用户名: ");
+		fflush(stdout);
 		scanf("%s", userName);
 		printf("?? 请输入密码: ");
+		fflush(stdout);
 		scanf("%s", password);
 		printf("?? 请选择组播地址(0标准 1锐捷私有 2赛尔): ");
+		fflush(stdout);
 		scanf("%u", &startMode);
 		startMode %= 3;
 		printf("?? 请选择DHCP方式(0不使用 1二次认证 2认证后 3认证前): ");
+		fflush(stdout);
 		scanf("%u", &dhcpMode);
 		dhcpMode %= 4;
 	}
@@ -398,7 +403,8 @@ static int getAdapter()
 	char errbuf[PCAP_ERRBUF_SIZE];
 	if (pcap_findalldevs(&alldevs, errbuf)==-1 || alldevs==NULL)
 	{
-		printf("!! 查找网卡失败: %s\n", errbuf);
+		printf("[%s]!! 查找网卡失败: %s\n", getTime(), errbuf);
+		fflush(stdout);
 		return -1;
 	}
 	for (d=alldevs; d!=NULL; d=d->next)
@@ -407,6 +413,7 @@ static int getAdapter()
 		if (!(d->flags & PCAP_IF_LOOPBACK) && strcmp(d->name, "any")!=0)
 		{
 			printf("** 网卡[%d]:\t%s\n", num, d->name);
+			fflush(stdout);
 			avail++;
 			i = num;
 		}
@@ -414,12 +421,14 @@ static int getAdapter()
 	if (avail == 0)
 	{
 		pcap_freealldevs(alldevs);
-		printf("!! 找不到网卡！\n");
+		printf("[%s]!! 找不到网卡！\n", getTime());
+		fflush(stdout);
 		return -1;
 	}
 	if (avail > 1)
 	{
 		printf("?? 请选择网卡[1-%d]: ", num);
+		fflush(stdout);
 		scanf("%d", &i);
 		if (i < 1)
 			i = 1;
@@ -427,6 +436,7 @@ static int getAdapter()
 			i = num;
 	}
 	printf("** 您选择了第[%d]块网卡。\n", i);
+	fflush(stdout);
 	for (d=alldevs; i>1; d=d->next, i--);
 	strncpy(nic, d->name, sizeof(nic)-1);
 	pcap_freealldevs(alldevs);
@@ -460,6 +470,7 @@ static void printConfig()
 		printf("** 数据文件:\t%s\n", dataFile);
 	if (dhcpMode != 0)
 		printf("** DHCP脚本:\t%s\n", dhcpScript);
+	fflush(stdout);
 }
 
 static int openPcap()
@@ -468,7 +479,8 @@ static int openPcap()
 	struct bpf_program fcode;
 	if ((hPcap = pcap_open_live(nic, 2048, 1, 1000, buf)) == NULL)
 	{
-		printf("!! 打开网卡%s失败: %s\n", nic, buf);
+		printf("[%s]!! 打开网卡%s失败: %s\n", getTime(), nic, buf);
+		fflush(stdout);
 		return -1;
 	}
 	fmt = formatHex(localMAC, 6);
@@ -482,7 +494,8 @@ static int openPcap()
 	if (pcap_compile(hPcap, &fcode, buf, 0, 0xffffffff) == -1
 			|| pcap_setfilter(hPcap, &fcode) == -1)
 	{
-		printf("!! 设置pcap过滤器失败: %s\n", pcap_geterr(hPcap));
+		printf("[%s]!! 设置pcap过滤器失败: %s\n", getTime(), pcap_geterr(hPcap));
+		fflush(stdout);
 		return -1;
 	}
 	pcap_freecode(&fcode);
@@ -529,9 +542,10 @@ static void saveConfig(int daemonMode)
 #endif
 	setString(&buf, "MentoHUST", "Username", userName);
 	if (saveFile(buf, CFG_FILE) != 0)
-		printf("!! 保存认证参数到%s失败！\n", CFG_FILE);
+		printf("[%s]!! 保存认证参数到%s失败！\n", getTime(), CFG_FILE);
 	else
 		printf("** 认证参数已成功保存到%s.\n", CFG_FILE);
+	fflush(stdout);
 	free(buf);
 }
 
@@ -553,25 +567,25 @@ static void checkRunning(int exitFlag, int daemonMode)
 	}
 	if (exitFlag) {
 		if (fl.l_type != F_UNLCK) {
-			printf(">> 已发送退出信号给MentoHUST进程(PID=%d).\n", fl.l_pid);
+			printf("[%s]>> 已发送退出信号给MentoHUST进程(PID=%d).\n", getTime(), fl.l_pid);
 			if (kill(fl.l_pid, SIGINT) == -1)
 				perror("!! 结束进程失败");
 		}
 		else
-			printf("!! 没有MentoHUST正在运行！\n");
+			printf("[%s]!! 没有MentoHUST正在运行！\n", getTime());
 		if (exitFlag == 1)
 			exit(EXIT_SUCCESS);
 	}
 	else if (fl.l_type != F_UNLCK) {
-		printf("!! MentoHUST已经运行(PID=%d)!\n", fl.l_pid);
+		printf("[%s]!! MentoHUST已经运行(PID=%d)!\n", getTime(), fl.l_pid);
 		exit(EXIT_FAILURE);
 	}
 	if (daemonMode) {	/* 貌似我过早进入后台模式了，就给个选项保留输出或者输出到文件吧 */
-		printf(">> 进入后台运行模式，使用参数-k可退出认证。\n");
+		printf("[%s]>> 进入后台运行模式，使用参数-k可退出认证。\n", getTime());
 		if (daemon(0, (daemonMode+1)%2))
 			perror("!! 后台运行失败");
 		else if (daemonMode == 3) {
-			freopen(LOG_FILE, "w", stdout);
+			freopen(LOG_FILE, "a", stdout);
 			freopen(LOG_FILE, "a", stderr);
 		}
 	}
